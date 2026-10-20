@@ -18,6 +18,7 @@ import (
 	"github.com/sleuth-io/sx/v2/internal/config"
 	"github.com/sleuth-io/sx/v2/internal/git"
 	"github.com/sleuth-io/sx/v2/internal/manifest"
+	"github.com/sleuth-io/sx/v2/internal/stats"
 	"github.com/sleuth-io/sx/v2/internal/ui"
 	"github.com/sleuth-io/sx/v2/internal/ui/components"
 	"github.com/sleuth-io/sx/v2/internal/utils"
@@ -854,6 +855,10 @@ func promptBootstrapOptions(cmd *cobra.Command, ctx context.Context, enabledClie
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
+	if err := promptTelemetryConsent(cmd, ctx, mpc, interactive); err != nil {
+		return err
+	}
+
 	// Get the active vault
 	cfg, err := config.Load()
 	if err != nil {
@@ -928,6 +933,9 @@ func promptBootstrapOptions(cmd *cobra.Command, ctx context.Context, enabledClie
 		styledOut.Info("Configure bootstrap options:")
 
 		for _, opt := range allOpts {
+			if opt.Key == bootstrap.AnalyticsHookKey {
+				continue
+			}
 			// Use existing value as default if already configured
 			defaultVal := opt.Default
 			if existingVal, exists := mpc.BootstrapOptions[opt.Key]; exists && existingVal != nil {
@@ -960,5 +968,27 @@ func promptBootstrapOptions(cmd *cobra.Command, ctx context.Context, enabledClie
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
+	return nil
+}
+
+func promptTelemetryConsent(cmd *cobra.Command, ctx context.Context, mpc *config.MultiProfileConfig, interactive bool) error {
+	// Also discard legacy pending events during unattended initialization.
+	_ = stats.TelemetryEnabled()
+	if !interactive || mpc.TelemetryDecided() {
+		return nil
+	}
+	fmt.Fprintln(cmd.OutOrStdout(), bootstrap.AnalyticsHook.Description)
+	answer, err := components.ConfirmWithIO(bootstrap.AnalyticsHook.Prompt, false, cmd.InOrStdin(), cmd.OutOrStdout())
+	if err != nil {
+		return err
+	}
+	if err := stats.SetTelemetry(ctx, answer); err != nil {
+		return err
+	}
+	latest, err := config.LoadMultiProfile()
+	if err != nil {
+		return err
+	}
+	mpc.Telemetry = latest.Telemetry
 	return nil
 }

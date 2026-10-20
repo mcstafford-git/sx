@@ -103,6 +103,10 @@ sx stats                   # adoption dashboard
 sx stats --since 7d --json # machine-readable
 ```
 
+Usage telemetry is off until you explicitly opt in with `sx telemetry enable`
+(or desktop Settings). See [usage analytics](docs/stats.md) for consent,
+revocation, and historical statistics.
+
 ### Distribute — install to the right scope, on any client
 
 ```bash
@@ -338,6 +342,9 @@ See LICENSE file for details.
 ---
 
 ## Development
+
+See the [development workflow](docs/development-workflow.md) for when to use
+OpenSpec and how changes move from proposal through verification and archival.
 
 <details>
 <summary>Click to expand development instructions</summary>

@@ -1,11 +1,38 @@
 # Usage analytics
 
-Every `sx install` records a per-asset usage event so vault admins can
-see what's actually being adopted. Events are appended to
-`.sx/usage/YYYY-MM.jsonl` under the vault root; the `sx stats` command
-aggregates them into a dashboard.
+Usage telemetry is **off by default**, including for existing users. A previous
+“Yes” to installing analytics hooks is not consent to this broader reporting.
 
-Desktop-app extension installs record the same event with
+```bash
+sx telemetry status     # undecided, disabled, or enabled
+sx telemetry enable     # explicitly opt in
+sx telemetry disable    # stop reporting and delete pending local events
+sx install              # configure analytics hooks after opting in
+```
+
+Opting in records skill usage detected by client hooks, skill usage reported
+through MCP, and desktop extension installs in your configured vaults. Hosted
+vaults receive events over their usage endpoint; git and path vaults keep usage
+under `.sx/usage/`. Events include asset name, version, type and timestamp;
+vaults attribute them to your identity. Consent is shared across all profiles,
+the CLI, and the desktop app on this installation.
+
+Interactive `sx init` asks undecided users a new question, defaulting to no.
+A decline is remembered. Unattended init and general confirmation flags never
+opt in. You can also use **Enable usage telemetry** in desktop Settings;
+opening settings does not grant consent. Restarting a current-version MCP
+server or desktop app is unnecessary when changing the setting.
+
+Without consent, old installed hooks safely no-op and usage is neither queued
+nor transmitted. Migration, disabling, and a fresh opt-in discard pending local
+usage queue files, so enabling starts fresh. Cleanup errors prevent enabling;
+retry the settings operation after resolving the reported filesystem error.
+Historical vault events, `sx stats`, explicit vault-history copies, and mutation
+audit logs remain available. Ordinary downloads and vault requests still work.
+Older binaries do not honor this setting: upgrade/restart them before relying
+on it. Files already written into vault history are not removed.
+
+With consent, desktop-app extension installs record the same event with
 `asset_type = "app-plugin"` (appended best-effort by the app), so
 extension adoption shows up in this dashboard alongside skills. That is
 this vault's view; **global** marketplace install counts are a separate
@@ -29,12 +56,12 @@ sections: totals, top assets, per-team adoption, and top actors. The
 
 ### What the dashboard shows
 
-- **Total events** — number of recorded installs in the window.
+- **Total events** — number of recorded usage events in the window.
 - **Top assets** — each asset's total use count plus the number of
-  unique users who installed it.
+  unique users associated with it.
 - **Team adoption** — for each team, the percentage of members who
-  recorded any install in the window (e.g. `platform 3/5 = 60%`).
-- **Top actors** — users with the most installs in the window.
+  recorded any usage in the window (e.g. `platform 3/5 = 60%`).
+- **Top actors** — users with the most usage events in the window.
 
 ## JSON output
 
@@ -81,14 +108,19 @@ Each event is one JSON object on a line in `.sx/usage/YYYY-MM.jsonl`:
   `time.Unix(0, 0)` so it falls outside any `--since Nd` window rather
   than skewing "recent" totals; `--since all` still counts it.
 
-## Git vault: lazy flush
+## Delivery and local queue
 
-Recording a usage event does not commit or push on git vaults.
-Appending to a JSONL file under an active write flock would otherwise
-produce a commit per install and flood the history. Events are held
-locally and swept into the next management commit (team mutation,
-install-set, etc.), which keeps history clean while preserving
-durability across CLI runs.
+With consent, hooks and MCP enqueue events under the configured cache directory's
+`usage-queue/`, then attempt to flush a batch to the active vault. Hook flushing
+is synchronous with a bounded timeout; MCP reporting runs in the background.
+Failed deliveries leave pending queue files for a later flush while enabled.
+Desktop extension usage writes directly to the current vault, best-effort.
+
+Path vaults append events to monthly JSONL files. Git vaults append locally and
+commit/push with throttling to avoid a commit for every event; management
+mutations may also sweep pending vault changes into a commit. Local statistics
+can see recorded vault events before a successful push. The telemetry consent
+queue cleanup removes the usage spool, not files already persisted in a vault.
 
 ## Sleuth vault
 

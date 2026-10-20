@@ -229,6 +229,7 @@ Use "{{muted (printf "%s [command] --help" .CommandPath)}}" for more information
 	rootCmd.AddCommand(commands.NewReportUsageCommand())
 	rootCmd.AddCommand(commands.NewServeCommand())
 	rootCmd.AddCommand(commands.NewConfigCommand())
+	rootCmd.AddCommand(commands.NewTelemetryCommand())
 	rootCmd.AddCommand(commands.NewClientsCommand())
 	rootCmd.AddCommand(commands.NewVaultCommand())
 	rootCmd.AddCommand(commands.NewCollectionCommand())

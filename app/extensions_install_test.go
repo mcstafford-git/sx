@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/sleuth-io/sx/v2/internal/stats"
 	vaultpkg "github.com/sleuth-io/sx/v2/internal/vault"
 )
 
@@ -89,6 +90,10 @@ func waitForEvent(t *testing.T, vaultRoot, stream, marker string) {
 
 func TestPersonalInstallScopesToCaller(t *testing.T) {
 	a, cfgDir, vdir := scopedExtensionApp(t, "alice@example.com")
+	t.Setenv("SX_CACHE_DIR", t.TempDir())
+	if err := stats.SetTelemetry(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 	marketplaceWith(t, a, "solo-tool")
 
 	name, err := a.InstallMarketplaceExtension("solo-tool", ExtensionScopeMe)
@@ -420,6 +425,10 @@ func TestPublishAcceptsTeamRepoViewPermissions(t *testing.T) {
 // result (the incremental-refresh primitive).
 func TestPluginUsageEventsSince(t *testing.T) {
 	a, _, vdir := scopedExtensionApp(t, "alice@example.com")
+	t.Setenv("SX_CACHE_DIR", t.TempDir())
+	if err := stats.SetTelemetry(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := a.PluginUsageEventsSince("not-a-timestamp"); err == nil {
 		t.Fatalf("bad timestamp should error")
@@ -431,6 +440,9 @@ func TestPluginUsageEventsSince(t *testing.T) {
 		t.Fatalf("install: %v", err)
 	}
 	waitForEvent(t, vdir, "usage", `"widget"`)
+	if err := stats.SetTelemetry(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
 
 	past := time.Now().Add(-time.Hour).Format(time.RFC3339)
 	future := time.Now().Add(time.Hour).Format(time.RFC3339)

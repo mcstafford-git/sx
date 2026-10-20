@@ -14,6 +14,7 @@ import {
   PickDirectory,
   RemoveLibrary,
   SetLibraryActive,
+  SetTelemetry,
   SetLibraryRepoTracking,
   StartSleuthLogin,
   SwitchProfile,
@@ -121,6 +122,13 @@ export default function SettingsModal({
     // (Unsubscribe removes only this listener, not other subscribers.)
     return EventsOn("library-icons-updated", load);
   }, []);
+
+  async function updateTelemetry(enabled: boolean) {
+    setBusy("telemetry"); setError("");
+    try { await SetTelemetry(enabled); setSettings(await GetSettings()); }
+    catch (e) { setError(String(e)); load(); }
+    finally { setBusy(""); }
+  }
 
   async function switchTo(name: string) {
     setBusy(name);
@@ -317,6 +325,23 @@ export default function SettingsModal({
           ))}
         </nav>
         <div className="min-w-0 flex-1">
+          {settings && <section className="mb-5 rounded-lg border border-line p-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={settings.telemetry === "enabled"} disabled={busy === "telemetry"}
+                onChange={(event) => updateTelemetry(event.target.checked)} />
+              Enable usage telemetry
+            </label>
+            <p className="mt-2 text-xs text-ink-faint">
+              {settings.telemetry === "undecided" ? "Off — awaiting your choice. " : settings.telemetry === "enabled" ? "Enabled. " : "Disabled. "}
+              Record hook and MCP skill usage and desktop extension installs in your configured vaults, including hosted vaults. Shared across all profiles and the CLI. Disabling deletes pending local events; historical stats remain available.
+              {settings.telemetry === "enabled" && " Run sx install to configure analytics hooks for detected clients."}
+            </p>
+            {settings.telemetry === "undecided" && <button type="button" disabled={busy === "telemetry"}
+              className="mt-2 text-xs text-ink-soft underline" onClick={() => updateTelemetry(false)}>
+              Keep disabled
+            </button>}
+          </section>}
+
       {tab === "extensions" ? (
         <>
           <ExtensionsSection />
@@ -768,7 +793,7 @@ export default function SettingsModal({
         </>
       )}
 
-      {error && tab === "libraries" && (
+      {error && (
         <div className="mt-3 rounded-lg bg-danger-soft px-3 py-2 text-sm text-danger">
           {error}
         </div>

@@ -21,7 +21,7 @@ import (
 
 // UsageReporter handles reporting skill usage
 type UsageReporter interface {
-	ReportSkillUsage(skillName, skillVersion string)
+	ReportSkillUsage(skillName, skillVersion string, occurred time.Time)
 }
 
 // Server provides an MCP server that exposes skill operations
@@ -140,7 +140,7 @@ func (s *Server) handleReadSkill(ctx context.Context, req *mcp.CallToolRequest, 
 		content, err := client.ReadSkill(ctx, input.Name, scope)
 		if err == nil {
 			// Report usage (best-effort, won't fail the MCP call)
-			go s.usageReporter.ReportSkillUsage(content.Name, content.Version)
+			go s.usageReporter.ReportSkillUsage(content.Name, content.Version, time.Now())
 
 			// Resolve @file references to absolute paths
 			resolvedContent := resolveFileReferences(content.Content, content.BaseDir)
@@ -206,7 +206,10 @@ func (s *Server) detectScope(ctx context.Context) (*clients.InstallScope, error)
 
 // ReportSkillUsage reports usage of a skill to the vault.
 // This function runs in a goroutine and is best-effort - it will not block the MCP call.
-func (s *Server) ReportSkillUsage(skillName, skillVersion string) {
+func (s *Server) ReportSkillUsage(skillName, skillVersion string, occurred time.Time) {
+	if !stats.TelemetryEnabled() {
+		return
+	}
 	log := logger.Get()
 
 	// Create usage event
@@ -214,7 +217,7 @@ func (s *Server) ReportSkillUsage(skillName, skillVersion string) {
 		AssetName:    skillName,
 		AssetVersion: skillVersion,
 		AssetType:    "skill",
-		Timestamp:    time.Now().UTC().Format(time.RFC3339),
+		Timestamp:    occurred.UTC().Format(time.RFC3339Nano),
 	}
 
 	// Enqueue event (fast, local file write)

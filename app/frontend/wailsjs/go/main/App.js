@@ -533,3 +533,7 @@ export function UpdateDraft(arg1) {
 export function VaultSupportsExtensions() {
   return window['go']['main']['App']['VaultSupportsExtensions']();
 }
+
+export function SetTelemetry(arg1) {
+  return window['go']['main']['App']['SetTelemetry'](arg1);
+}

@@ -19,6 +19,7 @@ import (
 	"github.com/sleuth-io/sx/v2/internal/config"
 	gitpkg "github.com/sleuth-io/sx/v2/internal/git"
 	"github.com/sleuth-io/sx/v2/internal/manifest"
+	"github.com/sleuth-io/sx/v2/internal/stats"
 	"github.com/sleuth-io/sx/v2/internal/utils"
 	vaultpkg "github.com/sleuth-io/sx/v2/internal/vault"
 )
@@ -45,12 +46,17 @@ type ProfileInfo struct {
 
 // Settings is the app's view of the sx configuration.
 type Settings struct {
-	Profiles []ProfileInfo `json:"profiles"`
+	Telemetry string        `json:"telemetry"`
+	Profiles  []ProfileInfo `json:"profiles"`
 }
 
 // GetSettings returns every configured profile.
 func (a *App) GetSettings() (Settings, error) {
-	out := Settings{}
+	status, err := stats.TelemetryStatus()
+	if err != nil {
+		return Settings{}, err
+	}
+	out := Settings{Telemetry: status}
 
 	mpc, err := config.LoadMultiProfile()
 	if err != nil {
@@ -740,4 +746,11 @@ func (a *App) PickFolderForDraft() (Draft, error) {
 		return Draft{}, errCancelled
 	}
 	return a.CreateDraftFromPaths([]string{dir})
+}
+
+// SetTelemetry records a deliberate user decision shared with the CLI.
+func (a *App) SetTelemetry(enabled bool) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return stats.SetTelemetry(ctx, enabled)
 }

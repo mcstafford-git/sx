@@ -6,9 +6,12 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/sleuth-io/sx/v2/internal/stats"
 )
 
 func TestReportUsageCodexFormat(t *testing.T) {
+	enableUsageForTest(t)
 	// Codex passes JSON as command-line argument with type=agent-turn-complete
 	codexJSON := `{"type":"agent-turn-complete","turn-id":"test-123","input-messages":["hello"],"last-assistant-message":"hi"}`
 
@@ -24,6 +27,7 @@ func TestReportUsageCodexFormat(t *testing.T) {
 }
 
 func TestReportUsageClaudeCodeFormat(t *testing.T) {
+	enableUsageForTest(t)
 	// Claude Code passes JSON via stdin with tool_name
 	claudeJSON := `{"tool_name":"Skill","tool_input":{"skill":"test-skill"}}`
 
@@ -39,6 +43,7 @@ func TestReportUsageClaudeCodeFormat(t *testing.T) {
 }
 
 func TestReportUsageInvalidJSON(t *testing.T) {
+	enableUsageForTest(t)
 	// Invalid JSON should not crash, just log error and return nil
 	invalidJSON := `{invalid json}`
 
@@ -56,6 +61,7 @@ func TestReportUsageInvalidJSON(t *testing.T) {
 }
 
 func TestReportUsageCodexVsClaudeCodeDetection(t *testing.T) {
+	enableUsageForTest(t)
 	// This tests that Codex format is detected BEFORE trying Claude Code format
 	// The bug was: Go's lenient JSON parsing accepted Codex JSON as Claude Code format
 	// with empty fields, causing silent return instead of proper Codex handling
@@ -76,6 +82,7 @@ func TestReportUsageCodexVsClaudeCodeDetection(t *testing.T) {
 }
 
 func TestReportUsageEmptyInput(t *testing.T) {
+	enableUsageForTest(t)
 	// Empty stdin should not crash
 	cmd := NewReportUsageCommand()
 	cmd.SetIn(bytes.NewBufferString(""))
@@ -92,6 +99,7 @@ func TestReportUsageEmptyInput(t *testing.T) {
 // TestReportUsageClaudeCodeMCPFormat tests Claude Code's snake_case JSON format for MCP tools
 // Actual Claude Code log: {"session_id":"...","tool_name":"mcp__sx__query","tool_input":{...}}
 func TestReportUsageClaudeCodeMCPFormat(t *testing.T) {
+	enableUsageForTest(t)
 	claudeJSON := `{"session_id":"c31e8751-8b7b-416c-a976-d4fb590202ef","transcript_path":"/home/ines/.claude/projects/-home-ines-work-sleuthio-sx/c31e8751-8b7b-416c-a976-d4fb590202ef.jsonl","cwd":"/home/ines/work/sleuthio/sx","permission_mode":"default","hook_event_name":"PostToolUse","tool_name":"mcp__sx__query","tool_input":{"query":"show pr comments","integration":"github"},"tool_response":[{"type":"text","text":"response"}],"tool_use_id":"toolu_01G8PafqkmFHtgbKL4somdT6"}`
 
 	cmd := NewReportUsageCommand()
@@ -108,6 +116,7 @@ func TestReportUsageClaudeCodeMCPFormat(t *testing.T) {
 // TestReportUsageClaudeCodeSkillFormat tests Claude Code's snake_case JSON format for skills
 // Actual Claude Code format: {"tool_name":"Skill","tool_input":{"skill":"my-skill"}}
 func TestReportUsageClaudeCodeSkillFormat(t *testing.T) {
+	enableUsageForTest(t)
 	claudeJSON := `{"session_id":"abc-123","cwd":"/home/ines/work/sleuthio/sx","hook_event_name":"PostToolUse","tool_name":"Skill","tool_input":{"skill":"fix-pr"},"tool_response":{"success":true},"tool_use_id":"toolu_123"}`
 
 	cmd := NewReportUsageCommand()
@@ -124,6 +133,7 @@ func TestReportUsageClaudeCodeSkillFormat(t *testing.T) {
 // TestReportUsageClaudeCodeNonAssetToolIgnored tests that Claude Code's non-asset tools are ignored
 // Actual Claude Code log: {"tool_name":"TaskOutput","tool_input":{"task_id":"bb1eb1b",...}}
 func TestReportUsageClaudeCodeNonAssetToolIgnored(t *testing.T) {
+	enableUsageForTest(t)
 	claudeJSON := `{"session_id":"613f4723-d86e-4c5c-9b54-3880b1af8763","transcript_path":"/home/ines/.claude/projects/-home-ines-work-sleuthio-sx/613f4723-d86e-4c5c-9b54-3880b1af8763.jsonl","cwd":"/home/ines/work/sleuthio/sx","permission_mode":"acceptEdits","hook_event_name":"PostToolUse","tool_name":"TaskOutput","tool_input":{"task_id":"bb1eb1b","block":true,"timeout":5000},"tool_response":{"retrieval_status":"timeout"},"tool_use_id":"toolu_01KqvWRQkquZrN2BYeM134EY"}`
 
 	cmd := NewReportUsageCommand()
@@ -142,6 +152,7 @@ func TestReportUsageClaudeCodeNonAssetToolIgnored(t *testing.T) {
 //
 //	"toolName":"skill","toolArgs":{"skill":"fix-pr"},"toolResult":{"resultType":"success",...}}
 func TestReportUsageCopilotSkillFormat(t *testing.T) {
+	enableUsageForTest(t)
 	copilotJSON := `{"sessionId":"cf4360fc-8ee6-4e7d-b659-bbf6ae161a3b","timestamp":1772181780833,"cwd":"/home/ines/work/sleuthio/sx","toolName":"skill","toolArgs":{"skill":"fix-pr"},"toolResult":{"resultType":"success","textResultForLlm":"Skill \"fix-pr\" loaded successfully. Follow the instructions in the skill context."}}`
 
 	cmd := NewReportUsageCommand()
@@ -158,6 +169,7 @@ func TestReportUsageCopilotSkillFormat(t *testing.T) {
 // TestReportUsageCopilotMCPFormat tests Copilot's MCP tool format (server-tool)
 // Actual Copilot log: {"toolName":"sx-query","toolArgs":{"query":"..."}}
 func TestReportUsageCopilotMCPFormat(t *testing.T) {
+	enableUsageForTest(t)
 	copilotJSON := `{"sessionId":"abc-123","timestamp":1772181780833,"cwd":"/tmp","toolName":"sx-query","toolArgs":{"query":"get PR comments","integration":"github"},"toolResult":{"resultType":"success"}}`
 
 	cmd := NewReportUsageCommand()
@@ -174,6 +186,7 @@ func TestReportUsageCopilotMCPFormat(t *testing.T) {
 // TestReportUsageCopilotReportIntentIgnored tests that Copilot's report_intent tool is ignored
 // Actual Copilot log: {"toolName":"report_intent","toolArgs":{"intent":"Fixing PR issues"},...}
 func TestReportUsageCopilotReportIntentIgnored(t *testing.T) {
+	enableUsageForTest(t)
 	copilotJSON := `{"sessionId":"cf4360fc-8ee6-4e7d-b659-bbf6ae161a3b","timestamp":1772181780807,"cwd":"/home/ines/work/sleuthio/sx","toolName":"report_intent","toolArgs":{"intent":"Fixing PR issues"},"toolResult":{"resultType":"success","textResultForLlm":"Intent logged"}}`
 
 	cmd := NewReportUsageCommand()
@@ -190,6 +203,7 @@ func TestReportUsageCopilotReportIntentIgnored(t *testing.T) {
 // TestReportUsageCursorSkillFormat tests Cursor's snake_case JSON format for skills
 // Cursor docs: https://cursor.com/docs/agent/hooks - postToolUse uses snake_case: tool_name, tool_input
 func TestReportUsageCursorSkillFormat(t *testing.T) {
+	enableUsageForTest(t)
 	cursorJSON := `{"session_id":"cursor-123","cwd":"/home/ines/work/sleuthio/sx","tool_name":"Skill","tool_input":{"skill":"fix-pr"}}`
 
 	cmd := NewReportUsageCommand()
@@ -206,6 +220,7 @@ func TestReportUsageCursorSkillFormat(t *testing.T) {
 // TestReportUsageCursorMCPFormat tests Cursor's MCP tool format
 // Cursor uses same format as Claude Code: {"tool_name":"mcp__server__tool",...}
 func TestReportUsageCursorMCPFormat(t *testing.T) {
+	enableUsageForTest(t)
 	cursorJSON := `{"session_id":"cursor-456","cwd":"/tmp","tool_name":"mcp__sx__query","tool_input":{"query":"get PR","integration":"github"}}`
 
 	cmd := NewReportUsageCommand()
@@ -221,6 +236,7 @@ func TestReportUsageCursorMCPFormat(t *testing.T) {
 
 // TestReportUsageCursorBuiltinToolIgnored tests that Cursor's built-in tools are ignored
 func TestReportUsageCursorBuiltinToolIgnored(t *testing.T) {
+	enableUsageForTest(t)
 	cursorJSON := `{"session_id":"cursor-789","cwd":"/tmp","tool_name":"Read","tool_input":{"file_path":"/tmp/test.go"}}`
 
 	cmd := NewReportUsageCommand()
@@ -237,6 +253,7 @@ func TestReportUsageCursorBuiltinToolIgnored(t *testing.T) {
 // TestReportUsageGeminiSkillFormat tests Gemini's snake_case JSON format for skills
 // Gemini uses same format as Claude Code: {"tool_name":"Skill","tool_input":{...}}
 func TestReportUsageGeminiSkillFormat(t *testing.T) {
+	enableUsageForTest(t)
 	geminiJSON := `{"session_id":"b4576730-3466-4e78-877c-6376b070d9a4","transcript_path":"/home/ines/.gemini/tmp/sx/chats/session-2026-02-27T12-34-b4576730.json","cwd":"/home/ines/work/sleuthio/sx","hook_event_name":"AfterTool","timestamp":"2026-02-27T12:46:42.726Z","tool_name":"Skill","tool_input":{"skill":"fix-pr"}}`
 
 	cmd := NewReportUsageCommand()
@@ -253,6 +270,7 @@ func TestReportUsageGeminiSkillFormat(t *testing.T) {
 // TestReportUsageGeminiBuiltinToolIgnored tests that Gemini's built-in tools are ignored
 // Actual Gemini log: {"tool_name":"replace","tool_input":{"file_path":"...","new_string":"..."}}
 func TestReportUsageGeminiBuiltinToolIgnored(t *testing.T) {
+	enableUsageForTest(t)
 	geminiJSON := `{"session_id":"b4576730-3466-4e78-877c-6376b070d9a4","transcript_path":"/home/ines/.gemini/tmp/sx/chats/session-2026-02-27T12-34-b4576730.json","cwd":"/home/ines/work/sleuthio/sx","hook_event_name":"AfterTool","timestamp":"2026-02-27T12:46:42.726Z","tool_name":"replace","tool_input":{"file_path":"/tmp/test.go","new_string":"test"}}`
 
 	cmd := NewReportUsageCommand()
@@ -269,6 +287,7 @@ func TestReportUsageGeminiBuiltinToolIgnored(t *testing.T) {
 // TestReportUsageGeminiReadFileIgnored tests that Gemini's read_file tool is ignored
 // Actual Gemini log: {"tool_name":"read_file","tool_input":{"file_path":"..."}}
 func TestReportUsageGeminiReadFileIgnored(t *testing.T) {
+	enableUsageForTest(t)
 	geminiJSON := `{"session_id":"b4576730-3466-4e78-877c-6376b070d9a4","transcript_path":"/home/ines/.gemini/tmp/sx/chats/session-2026-02-27T12-34-b4576730.json","cwd":"/home/ines/work/sleuthio/sx","hook_event_name":"AfterTool","timestamp":"2026-02-27T12:46:49.361Z","tool_name":"read_file","tool_input":{"file_path":"internal/commands/init.go"}}`
 
 	cmd := NewReportUsageCommand()
@@ -286,6 +305,7 @@ func TestReportUsageGeminiReadFileIgnored(t *testing.T) {
 // Kiro reads skills via readFile tool, and we detect skill usage from the file path in the result
 // Actual Kiro format: {"toolName":"readFile","toolResult":"<file name=\".kiro/skills/my-skill.md\">..."}
 func TestReportUsageKiroSkillFormat(t *testing.T) {
+	enableUsageForTest(t)
 	// Kiro passes JSON via USER_PROMPT env var
 	kiroJSON := `{"toolName":"readFile","toolResult":"<file name=\".kiro/skills/fix-pr.md\">\n# Fix PR Skill\n\nThis is the skill content.\n</file>"}`
 
@@ -305,6 +325,7 @@ func TestReportUsageKiroSkillFormat(t *testing.T) {
 
 // TestReportUsageKiroNonSkillReadFile tests that Kiro's readFile for non-skill files is ignored
 func TestReportUsageKiroNonSkillReadFile(t *testing.T) {
+	enableUsageForTest(t)
 	// Reading a regular file (not a skill)
 	kiroJSON := `{"toolName":"readFile","toolResult":"<file name=\"src/main.go\">\npackage main\n</file>"}`
 
@@ -323,6 +344,7 @@ func TestReportUsageKiroNonSkillReadFile(t *testing.T) {
 
 // TestReportUsageKiroMultiFileSkillPath tests that multi-file skill paths extract the top-level skill name
 func TestReportUsageKiroMultiFileSkillPath(t *testing.T) {
+	enableUsageForTest(t)
 	// Skill with subdirectory structure (e.g., .kiro/skills/my-skill/index.md)
 	kiroJSON := `{"toolName":"readFile","toolResult":"<file name=\".kiro/skills/my-skill/index.md\">\n# My Skill\n</file>"}`
 
@@ -514,6 +536,7 @@ func TestExtractKiroSkillNamesRelocatedHome(t *testing.T) {
 // returns. The buggy version would set flushCalled to false (or only true after a
 // race-y delay) because the goroutine never gets to run.
 func TestReportUsageFlushesQueueSynchronously(t *testing.T) {
+	enableUsageForTest(t)
 	// Use an isolated cache dir so we don't read or mutate the real one
 	tempCacheDir := t.TempDir()
 	t.Setenv("SX_CACHE_DIR", tempCacheDir)
@@ -567,4 +590,13 @@ func TestReportUsageFlushesQueueSynchronously(t *testing.T) {
 func TestMain(m *testing.M) {
 	// Run tests
 	os.Exit(m.Run())
+}
+
+func enableUsageForTest(t *testing.T) {
+	t.Helper()
+	t.Setenv("SX_CONFIG_DIR", t.TempDir())
+	t.Setenv("SX_CACHE_DIR", t.TempDir())
+	if err := stats.SetTelemetry(context.Background(), true); err != nil {
+		t.Fatal(err)
+	}
 }

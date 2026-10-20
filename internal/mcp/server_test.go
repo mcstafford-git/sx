@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 
@@ -389,7 +390,7 @@ func newMockUsageReporter() *mockUsageReporter {
 	}
 }
 
-func (m *mockUsageReporter) ReportSkillUsage(skillName, skillVersion string) {
+func (m *mockUsageReporter) ReportSkillUsage(skillName, skillVersion string, _ time.Time) {
 	m.mu.Lock()
 	m.reports = append(m.reports, usageReport{skillName, skillVersion})
 	m.mu.Unlock()

@@ -44,9 +44,9 @@ var SessionHook = Option{
 // Installs hooks for all detected clients (Claude Code, Copilot CLI, Cursor).
 var AnalyticsHook = Option{
 	Key:         AnalyticsHookKey,
-	Description: "Analytics hook - Track skill usage for analytics",
-	Prompt:      "Install analytics hooks?",
-	Default:     true,
+	Description: "Usage telemetry - Record hook and MCP skill usage and desktop extension installs in your vault",
+	Prompt:      "Enable usage telemetry?",
+	Default:     false,
 	DeclineNote: "Skill usage analytics will not be tracked.",
 }
 

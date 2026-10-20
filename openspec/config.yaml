@@ -1,0 +1,28 @@
+schema: spec-driven
+
+context: |
+  Account for Linux, macOS, and Windows behavior when a change touches
+  platform-dependent paths, clients, packaging, or system integration.
+  Keep commit subject lines at 72 characters or fewer.
+  Never push without explicit user permission.
+  Run make prepush after the final relevant code edit and do not report code
+  work complete when it fails, cannot run, or is interrupted.
+
+rules:
+  proposal:
+    - State explicit non-goals when they prevent likely scope expansion.
+    - Name every durable capability whose requirements change.
+  design:
+    - Address compatibility and migration when persisted formats or public behavior change.
+  tasks:
+    - Give every tracked task a concrete verification step.
+    - Keep archive-only follow-up outside tracked implementation tasks.
+
+operations:
+  apply:
+    guidance:
+      - Mark a task complete only after its stated verification succeeds.
+      - Reconcile planning artifacts before implementing a material scope change.
+  archive:
+    guidance:
+      - Archive only after implementation verification and the repository completion gate succeed.

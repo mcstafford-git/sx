@@ -12,6 +12,7 @@ import (
 	"github.com/sleuth-io/sx/v2/internal/logger"
 	"github.com/sleuth-io/sx/v2/internal/manifest"
 	"github.com/sleuth-io/sx/v2/internal/mgmt"
+	"github.com/sleuth-io/sx/v2/internal/stats"
 	vaultpkg "github.com/sleuth-io/sx/v2/internal/vault"
 )
 
@@ -336,6 +337,9 @@ func (a *App) emitExtensionInstall(id, version, scope, source string, wasUpdate 
 		event.Event = mgmt.EventPluginUpdated
 	}
 	a.goEvent(func() { a.appendPluginAudit(event) })
+	if !stats.TelemetryEnabled() {
+		return
+	}
 	usage := mgmt.UsageEvent{
 		Timestamp:    event.Timestamp,
 		Actor:        actor,
@@ -371,7 +375,9 @@ func (a *App) recordPluginUsage(e mgmt.UsageEvent) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	if err := v.RecordUsageEvents(ctx, []mgmt.UsageEvent{e}); err != nil {
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := stats.WithUsageTelemetry(ctx, e.Timestamp, func() error { return v.RecordUsageEvents(ctx, []mgmt.UsageEvent{e}) }); err != nil {
 		logger.Get().Warn("extension usage append failed", "error", err)
 	}
 }

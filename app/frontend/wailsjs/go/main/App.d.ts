@@ -268,3 +268,5 @@ export function UpdateBotDescription(arg1:string,arg2:string):Promise<void>;
 export function UpdateDraft(arg1:main.Draft):Promise<main.Draft>;
 
 export function VaultSupportsExtensions():Promise<boolean>;
+
+export function SetTelemetry(arg1:boolean):Promise<void>;

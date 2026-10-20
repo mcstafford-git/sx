@@ -32,6 +32,16 @@ func GetQueuePath() string {
 
 // EnqueueEvent writes a usage event to the queue directory
 func EnqueueEvent(event UsageEvent) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	occurred, err := time.Parse(time.RFC3339Nano, event.Timestamp)
+	if err != nil {
+		return fmt.Errorf("invalid usage timestamp: %w", err)
+	}
+	return WithUsageTelemetry(ctx, occurred, func() error { return enqueueEvent(event) })
+}
+
+func enqueueEvent(event UsageEvent) error {
 	queueDir := GetQueuePath()
 
 	// Create queue directory if it doesn't exist
@@ -127,6 +137,10 @@ func DeleteEventFiles(filePaths []string) error {
 
 // FlushQueue loads pending events from queue and sends them to the repository
 func FlushQueue(ctx context.Context, repo vault.Vault) error {
+	return WithTelemetry(ctx, func() error { return flushQueue(ctx, repo) })
+}
+
+func flushQueue(ctx context.Context, repo vault.Vault) error {
 	// Load pending events
 	events, filePaths, err := DequeueEvents(100)
 	if err != nil {

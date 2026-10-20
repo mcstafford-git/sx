@@ -802,6 +802,7 @@ export namespace main {
 	    }
 	}
 	export class Settings {
+        telemetry: string;
 	    profiles: ProfileInfo[];
 	
 	    static createFrom(source: any = {}) {
@@ -810,7 +811,8 @@ export namespace main {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.profiles = this.convertValues(source["profiles"], ProfileInfo);
+	        this.telemetry = source["telemetry"];
+        this.profiles = this.convertValues(source["profiles"], ProfileInfo);
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -104,6 +104,10 @@ func extractKiroSkillName(toolResult string) string {
 
 // runReportUsage executes the report-usage command
 func runReportUsage(cmd *cobra.Command, args []string) error {
+	occurred := time.Now()
+	if !stats.TelemetryEnabled() {
+		return nil
+	}
 	// Initialize logger early to capture all errors
 	log := logger.Get()
 
@@ -235,7 +239,7 @@ func runReportUsage(cmd *cobra.Command, args []string) error {
 		AssetName:    assetName,
 		AssetVersion: assetVersion,
 		AssetType:    assetType,
-		Timestamp:    time.Now().UTC().Format(time.RFC3339),
+		Timestamp:    occurred.UTC().Format(time.RFC3339Nano),
 	}
 
 	// Enqueue event

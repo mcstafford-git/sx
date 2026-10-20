@@ -1,6 +1,7 @@
 package config
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/sleuth-io/sx/v2/internal/utils"
 )
@@ -78,13 +80,17 @@ type MultiProfileConfig struct {
 	ForceDisabledClients []string `json:"forceDisabledClients,omitempty"`
 
 	// BootstrapOptions stores user consent for bootstrap items (hooks, MCP servers).
-	// Keyed by option key, nil/missing = yes (backwards compatible).
-	BootstrapOptions map[string]*bool `json:"bootstrapOptions,omitempty"`
+	// Keyed by option key; analytics installation requires Telemetry consent.
+	BootstrapOptions map[string]*bool  `json:"bootstrapOptions,omitempty"`
+	Telemetry        *TelemetryConsent `json:"telemetry,omitempty"`
 }
 
 // GetBootstrapOption returns whether a bootstrap option is enabled.
-// Returns true if the option is missing/nil (backwards compatible - existing users get everything).
+// Analytics requires telemetry consent; other missing options retain their legacy defaults.
 func (mpc *MultiProfileConfig) GetBootstrapOption(key string) bool {
+	if key == "analytics_hook" {
+		return mpc.TelemetryEnabled()
+	}
 	if mpc.BootstrapOptions == nil {
 		return true // nil = yes
 	}
@@ -294,11 +300,40 @@ type backwardsCompatibleConfig struct {
 	ForceDisabledClients []string `json:"forceDisabledClients,omitempty"`
 
 	// Bootstrap options (global across profiles)
-	BootstrapOptions map[string]*bool `json:"bootstrapOptions,omitempty"`
+	BootstrapOptions map[string]*bool  `json:"bootstrapOptions,omitempty"`
+	Telemetry        *TelemetryConsent `json:"telemetry,omitempty"`
 }
 
 // SaveMultiProfile saves the full multi-profile configuration
 func SaveMultiProfile(mpc *MultiProfileConfig) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	lock, err := LockTelemetry(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = lock.Unlock() }()
+	configFile, err := utils.GetConfigFile()
+	if err != nil {
+		return err
+	}
+	var consent *TelemetryConsent
+	if _, err := os.Stat(configFile); err == nil {
+		current, err := LoadMultiProfile()
+		if err != nil {
+			return err
+		}
+		consent = current.Telemetry
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	// Ordinary saves must not restore consent from a stale caller snapshot.
+	updated := *mpc
+	updated.Telemetry = consent
+	return saveMultiProfile(&updated)
+}
+
+func saveMultiProfile(mpc *MultiProfileConfig) error {
 	configFile, err := utils.GetConfigFile()
 	if err != nil {
 		return fmt.Errorf("failed to get config file path: %w", err)
@@ -318,6 +353,7 @@ func SaveMultiProfile(mpc *MultiProfileConfig) error {
 		ForceEnabledClients:  mpc.ForceEnabledClients,
 		ForceDisabledClients: mpc.ForceDisabledClients,
 		BootstrapOptions:     mpc.BootstrapOptions,
+		Telemetry:            mpc.Telemetry,
 		// Note: EnabledClients intentionally not saved (deprecated)
 	}
 
@@ -338,7 +374,7 @@ func SaveMultiProfile(mpc *MultiProfileConfig) error {
 	}
 
 	// Write to file with secure permissions
-	if err := os.WriteFile(configFile, data, 0600); err != nil {
+	if err := utils.WriteFileAtomic(configFile, data, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
