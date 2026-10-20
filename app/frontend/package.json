@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:policy": "node --experimental-vm-modules --test tests/policy.test.mjs"
   },
   "dependencies": {
     "@codemirror/lang-markdown": "^6.5.0",

@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-
-	vaultpkg "github.com/sleuth-io/sx/v2/internal/vault"
 )
 
 // Extension cache: local copies of the vault's extensions (manifest +
@@ -113,8 +111,7 @@ func (a *App) writeExtensionCache(plugins []VaultPlugin) {
 // CachedPluginPolicy returns the last successfully read extension policy
 // without touching the vault — the boot fast path pairs it with
 // CachedVaultPlugins so enablement gates run before any network I/O.
-// No cache falls back to open, matching GetPluginPolicy's fallback.
+// No valid cache falls back to disabled, matching GetPluginPolicy.
 func (a *App) CachedPluginPolicy() PluginPolicy {
-	open := PluginPolicy{Mode: vaultpkg.AppPluginModeOpen, Allowed: []string{}}
-	return a.cachedPluginPolicy(open)
+	return a.cachedPluginPolicy()
 }

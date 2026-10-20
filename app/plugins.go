@@ -288,29 +288,41 @@ type PluginPolicy struct {
 // allowlist — so successful reads are cached per profile and an error
 // serves the cache.
 func (a *App) GetPluginPolicy() (PluginPolicy, error) {
-	open := PluginPolicy{Mode: vaultpkg.AppPluginModeOpen, Allowed: []string{}}
+	cachePath, _ := a.policyCachePath()
 	v, err := a.currentVault()
 	if err != nil {
-		return a.cachedPluginPolicy(open), nil
+		return a.cachedPluginPolicy(), nil
 	}
-	store, ok := v.(vaultpkg.AppPluginPolicyStore)
-	if !ok {
-		return open, nil // backend has no policy concept — genuinely open
-	}
-	policy, err := store.AppPluginPolicy(a.ctx)
-	if err != nil {
-		return a.cachedPluginPolicy(open), nil
-	}
-	out := open
-	if policy != nil && policy.Mode != "" {
-		allowed := policy.Allowed
-		if allowed == nil {
-			allowed = []string{}
+	out := PluginPolicy{Mode: vaultpkg.AppPluginModeOpen, Allowed: []string{}}
+	if store, ok := v.(vaultpkg.AppPluginPolicyStore); ok {
+		policy, err := store.AppPluginPolicy(a.ctx)
+		if err != nil {
+			return a.cachedPluginPolicy(), nil
 		}
-		out = PluginPolicy{Mode: policy.Mode, Allowed: allowed}
+		if policy != nil && policy.Mode != "" {
+			out.Mode = policy.Mode
+			if policy.Allowed != nil {
+				out.Allowed = policy.Allowed
+			}
+		}
 	}
-	a.cachePluginPolicy(out)
+	if !validPluginPolicyMode(out.Mode) {
+		return a.cachedPluginPolicy(), nil
+	}
+	// A request started in another profile cannot authorize this one.
+	if currentPath, _ := a.policyCachePath(); currentPath != cachePath {
+		return a.cachedPluginPolicy(), nil
+	}
+	a.cachePluginPolicy(cachePath, out)
 	return out, nil
+}
+
+func validPluginPolicyMode(mode string) bool {
+	switch mode {
+	case vaultpkg.AppPluginModeOpen, vaultpkg.AppPluginModeAllowlist, vaultpkg.AppPluginModeDisabled:
+		return true
+	}
+	return false
 }
 
 func (a *App) policyCachePath() (string, error) {
@@ -321,17 +333,17 @@ func (a *App) policyCachePath() (string, error) {
 	return filepath.Join(dir, "policy-cache.json"), nil
 }
 
-func (a *App) cachePluginPolicy(p PluginPolicy) {
-	path, err := a.policyCachePath()
-	if err != nil {
+func (a *App) cachePluginPolicy(path string, p PluginPolicy) {
+	if path == "" {
 		return
 	}
 	if data, err := json.Marshal(p); err == nil {
-		_ = os.WriteFile(path, data, 0o644)
+		_ = atomicWriteFile(path, data)
 	}
 }
 
-func (a *App) cachedPluginPolicy(fallback PluginPolicy) PluginPolicy {
+func (a *App) cachedPluginPolicy() PluginPolicy {
+	fallback := PluginPolicy{Mode: vaultpkg.AppPluginModeDisabled, Allowed: []string{}}
 	path, err := a.policyCachePath()
 	if err != nil {
 		return fallback
@@ -341,7 +353,7 @@ func (a *App) cachedPluginPolicy(fallback PluginPolicy) PluginPolicy {
 		return fallback
 	}
 	var p PluginPolicy
-	if err := json.Unmarshal(data, &p); err != nil || p.Mode == "" {
+	if err := json.Unmarshal(data, &p); err != nil || !validPluginPolicyMode(p.Mode) {
 		return fallback
 	}
 	if p.Allowed == nil {

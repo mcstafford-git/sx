@@ -86,13 +86,17 @@ func TestCachedVaultPluginsSkipsBadEntries(t *testing.T) {
 func TestCachedPluginPolicy(t *testing.T) {
 	a := pluginTestApp(t)
 
-	// No cache: open, matching GetPluginPolicy's fallback.
+	// No cache: disabled, matching GetPluginPolicy's fallback.
 	p := a.CachedPluginPolicy()
-	if p.Mode != vaultpkg.AppPluginModeOpen || len(p.Allowed) != 0 {
-		t.Fatalf("no-cache policy = %+v; want open", p)
+	if p.Mode != vaultpkg.AppPluginModeDisabled || len(p.Allowed) != 0 {
+		t.Fatalf("no-cache policy = %+v; want disabled", p)
 	}
 
-	a.cachePluginPolicy(PluginPolicy{Mode: "allowlist", Allowed: []string{"hello-team"}})
+	path, err := a.policyCachePath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	a.cachePluginPolicy(path, PluginPolicy{Mode: "allowlist", Allowed: []string{"hello-team"}})
 	p = a.CachedPluginPolicy()
 	if p.Mode != "allowlist" || len(p.Allowed) != 1 || p.Allowed[0] != "hello-team" {
 		t.Fatalf("cached policy = %+v", p)

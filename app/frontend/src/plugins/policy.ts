@@ -15,18 +15,30 @@ export interface PluginPolicy {
   allowed: string[];
 }
 
-let policy: PluginPolicy = { mode: "open", allowed: [] };
+let policy: PluginPolicy = { mode: "disabled", allowed: [] };
 let consents: Record<string, string[]> = {};
 
+function validatedPolicy(value: unknown): PluginPolicy {
+  if (value && typeof value === "object" && "mode" in value) {
+    const p = value as { mode: unknown; allowed?: unknown };
+    if (
+      (p.mode === "open" || p.mode === "allowlist" || p.mode === "disabled") &&
+      (p.allowed == null ||
+        (Array.isArray(p.allowed) && p.allowed.every((id) => typeof id === "string")))
+    ) {
+      return { mode: p.mode, allowed: (p.allowed as string[] | null) ?? [] };
+    }
+  }
+  return { mode: "disabled", allowed: [] };
+}
+
 export async function loadPolicyAndConsents(): Promise<void> {
+  resetPolicy();
   try {
     const p = await GetPluginPolicy();
-    policy = {
-      mode: (p.mode as PluginPolicy["mode"]) || "open",
-      allowed: p.allowed ?? [],
-    };
+    policy = validatedPolicy(p);
   } catch {
-    policy = { mode: "open", allowed: [] };
+    policy = { mode: "disabled", allowed: [] };
   }
   await loadConsents();
 }
@@ -36,14 +48,12 @@ export async function loadPolicyAndConsents(): Promise<void> {
  * enablement gates run before any network round trip. The fresh policy
  * (loadPolicyAndConsents) re-evaluates seconds later. */
 export async function loadCachedPolicyAndConsents(): Promise<void> {
+  resetPolicy();
   try {
     const p = await CachedPluginPolicy();
-    policy = {
-      mode: (p.mode as PluginPolicy["mode"]) || "open",
-      allowed: p.allowed ?? [],
-    };
+    policy = validatedPolicy(p);
   } catch {
-    policy = { mode: "open", allowed: [] };
+    policy = { mode: "disabled", allowed: [] };
   }
   await loadConsents();
 }
@@ -140,6 +150,6 @@ export function describePermission(p: Permission): string {
 
 /** Test/dev helper. */
 export function resetPolicy(): void {
-  policy = { mode: "open", allowed: [] };
+  policy = { mode: "disabled", allowed: [] };
   consents = {};
 }
